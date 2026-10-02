@@ -11,9 +11,9 @@ if TYPE_CHECKING:
 
 
 def test_cli_prints_summary(
-    self_executable: Path, capsys: pytest.CaptureFixture[str]
+    sample_object: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    rc = _cli.main([str(self_executable)])
+    rc = _cli.main([str(sample_object)])
     out = capsys.readouterr().out
     assert rc == 0
     assert "format:" in out
@@ -23,29 +23,27 @@ def test_cli_prints_summary(
 
 
 def test_cli_lists_symbols(
-    self_executable: Path, capsys: pytest.CaptureFixture[str]
+    sample_object: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    rc = _cli.main([str(self_executable), "--symbols"])
+    rc = _cli.main([str(sample_object), "--symbols"])
     assert rc == 0
     assert "symbols:" in capsys.readouterr().out
 
 
-def test_cli_demangle(
-    self_executable: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_demangle(sample_object: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # pycxxfilt is in the test dependency group, so --demangle is available.
-    rc = _cli.main([str(self_executable), "--symbols", "--demangle"])
+    rc = _cli.main([str(sample_object), "--symbols", "--demangle"])
     assert rc == 0
     assert "symbols:" in capsys.readouterr().out
 
 
 def test_cli_demangle_without_pycxxfilt(
-    self_executable: Path,
+    sample_object: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(_cli, "_load_demangler", lambda: None)
-    rc = _cli.main([str(self_executable), "--demangle"])
+    rc = _cli.main([str(sample_object), "--demangle"])
     assert rc == 1
     assert "pycxxfilt" in capsys.readouterr().err
 
@@ -67,10 +65,10 @@ def test_cli_demangle_drops_version(
 
 
 def test_cli_demangle_flags_mutually_exclusive(
-    self_executable: Path,
+    sample_object: Path,
 ) -> None:
     with pytest.raises(SystemExit):
-        _cli.main([str(self_executable), "--demangle", "--demangle-with-version"])
+        _cli.main([str(sample_object), "--demangle", "--demangle-with-version"])
 
 
 def test_display_falls_back_when_demangle_raises() -> None:

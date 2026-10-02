@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
 
 @pytest.fixture(scope="session")
-def self_executable() -> Path:
-    """The running interpreter: a real object file for the current platform."""
-    return Path(sys.executable)
+def sample_object() -> Path:
+    """A real, single-architecture object file for the current platform.
+
+    Uses the compiled extension module (ELF ``.so`` / Mach-O ``.so`` / PE
+    ``.pyd``), which is always present. Unlike ``sys.executable``, it is never a
+    universal (fat) Mach-O - which ``object`` cannot parse - so this is stable
+    across macOS as well as Linux and Windows.
+    """
+    from objectfile import _objectfile
+
+    assert _objectfile.__file__ is not None
+    return Path(_objectfile.__file__)
 
 
 @pytest.fixture

@@ -1,0 +1,86 @@
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "objectfile"
+dynamic = ["version"]
+description = "Parse ELF, Mach-O, PE, and WebAssembly object files: metadata, symbols, and dependencies"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0 OR MIT"
+license-files = ["LICENSE-APACHE", "LICENSE-MIT"]
+authors = [{ name = "Christian Heimes", email = "christian@python.org" }]
+keywords = ["object", "elf", "pe", "mach-o", "symbols", "binary", "executable"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Disassemblers",
+    "Topic :: System :: Software Distribution",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+# Enables `objectfile --demangle` to demangle C++/Rust symbol names.
+cli = ["pycxxfilt>=1.2"]
+
+[project.scripts]
+objectfile = "objectfile._cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tiran/objectfile"
+Repository = "https://github.com/tiran/objectfile"
+Issues = "https://github.com/tiran/objectfile/issues"
+Changelog = "https://github.com/tiran/objectfile/releases"
+
+[dependency-groups]
+test = ["pytest>=8.3", "pycxxfilt>=1.2"]
+lint = ["ruff>=0.16"]
+typecheck = ["pyrefly>=1.3"]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "typecheck" },
+]
+
+[tool.maturin]
+# Mixed Rust/Python layout: Python package lives under python/, the compiled
+# extension is installed as objectfile._objectfile (crate-type cdylib, lib name
+# `_objectfile`). abi3 wheels come from the pyo3/abi3-py312 feature in Cargo.toml.
+python-source = "python"
+module-name = "objectfile._objectfile"
+strip = true
+exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["python", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "TC", "ANN", "RUF"]
+ignore = ["E501", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN"]
+"python/objectfile/_objectfile.pyi" = ["ANN"]
+
+[tool.pyrefly]
+# The editable install registers python/ as a site-packages path, which pyrefly
+# auto-excludes; the typecheck command therefore passes explicit paths
+# (`pyrefly check python/objectfile tests`). These settings cover direct runs.
+project-includes = ["python/objectfile", "tests"]
+project-excludes = ["**/__pycache__", "**/*.pyc", "**/.venv/**"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"

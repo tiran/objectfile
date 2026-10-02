@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.14"
+      - run: uv run ruff check python tests
+      - run: uv run ruff format --check python tests
+
+  rust:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup component add rustfmt clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.14"
+      - run: uv sync
+      - run: uv run pyrefly check python/objectfile tests
+
+  test:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
+        # Free-threaded builds (3.14t, 3.15t) are tested but not shipped as
+        # wheels. pyo3 supports free-threading only on 3.14+, so 3.13t is
+        # intentionally excluded.
+        include:
+          - os: ubuntu-latest
+            python-version: "3.14t"
+          - os: ubuntu-latest
+            python-version: "3.15t"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync
+      - run: uv run pytest -ra
+
+  cross-fixtures:
+    name: Cross-format fixtures
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Turn "target not installed" skips into failures, so this job proves the
+      # cross-format fixtures actually ran.
+      OBJECTFILE_REQUIRE_CROSS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.14"
+      # `rustc --emit obj` only needs each target's std (no linker/SDK), so these
+      # cover ELF (x86_64/aarch64/ppc64le/s390x), COFF (x86_64/i686), Mach-O and
+      # Wasm parsing.
+      - run: >
+          rustup target add
+          aarch64-unknown-none-softfloat
+          powerpc64le-unknown-linux-gnu
+          s390x-unknown-linux-gnu
+          x86_64-pc-windows-gnu
+          i686-pc-windows-gnu
+          aarch64-apple-darwin
+          wasm32-unknown-unknown
+      - run: uv sync
+      - run: uv run pytest -ra tests/test_cross_format.py
+
+  build-package:
+    name: Build & inspect package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hynek/build-and-inspect-python-package@2abe76da66d0a6a4a227101f9348ee855797cfa5 # v3.0.1

@@ -1,0 +1,17 @@
+[package]
+name = "cuda-fatbin"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+description = "Parser for NVIDIA CUDA fat binary (.nv_fatbin) containers"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+repository = "https://github.com/tiran/objectfile"
+publish = false
+
+[dev-dependencies]
+# Test-only: extract the .nv_fatbin section from the real ELF fixtures.
+object = "0.40"
+
+[lints.rust]
+unsafe_code = "forbid"

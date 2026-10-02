@@ -62,6 +62,10 @@ def _print_summary(obj: ObjectFile) -> None:
     print(f"imports:      {sum(1 for _ in obj.imports())}")
     print(f"exports:      {sum(1 for _ in obj.exports())}")
 
+    targets = obj.gpu_targets()
+    if targets:
+        print(f"gpu targets:  {', '.join(targets)}")
+
 
 def _print_imports(obj: ObjectFile, demangle: Demangler | None) -> None:
     print("imports:")
@@ -92,6 +96,14 @@ def _print_symbols(obj: ObjectFile, demangle: Demangler | None) -> None:
         print(f"  {name}  ({sym.kind}, {sym.scope})")
 
 
+def _print_gpu(obj: ObjectFile) -> None:
+    code_objects = obj.gpu_code_objects()
+    print(f"gpu code objects ({len(code_objects)}):")
+    for co in code_objects:
+        target = co.target if co.target is not None else "-"
+        print(f"  {co.compute_platform:5} {target:18} {co.kind}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="objectfile",
@@ -102,6 +114,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--exports", action="store_true", help="list exported symbols")
     parser.add_argument(
         "--symbols", action="store_true", help="list symbol-table entries"
+    )
+    parser.add_argument(
+        "--gpu",
+        action="store_true",
+        help="list embedded GPU code objects (CUDA/HIP fat binaries)",
     )
     # Both flags demangle names (requires the 'cli' extra: pycxxfilt); they
     # differ only in whether the ELF symbol version suffix is kept on exports.
@@ -144,6 +161,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         _print_exports(obj, demangle, show_version=show_version)
     if args.symbols:
         _print_symbols(obj, demangle)
+    if args.gpu:
+        _print_gpu(obj)
     return 0
 
 

@@ -74,6 +74,31 @@ for sym in obj.dynamic_symbols():
         print(pycxxfilt.demangle(sym.name))
 ```
 
+## GPU fat binaries
+
+Detect embedded NVIDIA CUDA and AMD HIP/ROCm device code, and the GPU
+architectures a binary ships for:
+
+```python
+obj = objectfile.parse_file("libtorch_hip.so")
+obj.gpu_targets()  # ['gfx90a', 'gfx942', ...]
+for co in obj.gpu_code_objects():
+    print(co.compute_platform, co.target, co.kind)  # 'hip' 'gfx90a' 'code-object'
+```
+
+- `gpu_targets() -> list[str]` - sorted, unique target IDs (`sm_90a`,
+  `compute_120`, `gfx942`, ...).
+- `gpu_code_objects() -> list[GpuCodeObject]` - one per embedded code object,
+  with `compute_platform` (`"cuda"` / `"hip"`), `target` (`None` for a host entry), and
+  `kind`.
+
+Sections are matched by magic (CUDA `.nv_fatbin` and the Clang Offload Bundle in
+`.hip_fatbin`), and only the container headers are read, so no device code is
+decompressed. The container parsers are the standalone crates
+[`cuda-fatbin`](crates/cuda-fatbin) and
+[`offload-bundle`](crates/offload-bundle). GPU support is on by default and can
+be dropped with the crate's `--no-default-features`.
+
 ## Command line (unstable)
 
 A small `objectfile` command prints a summary of a file:
@@ -91,8 +116,19 @@ imports:      128
 exports:      0
 ```
 
-Add `--imports`, `--exports`, or `--symbols` to list those entries, or run it as
-`python -m objectfile <path>`. With the `cli` extra installed
+Add `--imports`, `--exports`, `--symbols`, or `--gpu` to list those entries, or
+run it as `python -m objectfile <path>`. When a binary ships GPU code, the
+summary shows a `gpu targets:` line, and `--gpu` lists each embedded code object:
+
+```console
+$ objectfile libtorch_hip.so --gpu
+...
+gpu targets:  gfx90a, gfx942
+gpu code objects (3):
+  hip   -                  host
+  hip   gfx90a             code-object
+  hip   gfx942             code-object
+``` With the `cli` extra installed
 (`pip install objectfile[cli]`, which pulls in
 [pycxxfilt](https://pypi.org/project/pycxxfilt/)), `--demangle` renders C++/Rust symbol
 names in a readable form.

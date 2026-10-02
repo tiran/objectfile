@@ -1,0 +1,22 @@
+[package]
+name = "offload-bundle"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+description = "Parser for Clang Offload Bundles (AMD HIP/ROCm .hip_fatbin), including compressed CCOB"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+repository = "https://github.com/tiran/objectfile"
+publish = false
+
+[dependencies]
+# Pure-Rust decompressors (same versions object already uses), so no C deps.
+flate2 = "1"
+ruzstd = "0.9"
+
+[dev-dependencies]
+# Test-only: extract the .hip_fatbin section from the real ELF fixtures.
+object = "0.40"
+
+[lints.rust]
+unsafe_code = "forbid"

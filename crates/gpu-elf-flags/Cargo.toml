@@ -1,0 +1,22 @@
+[package]
+name = "gpu-elf-flags"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+description = "Decode GPU code-object targets from an ELF e_flags field (AMD AMDGPU and NVIDIA CUDA)"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+repository = "https://github.com/tiran/objectfile"
+publish = false
+
+[dev-dependencies]
+# Test-only: extract embedded code objects from the real GPU fixtures and
+# cross-check their decoded e_flags against the container metadata.
+object = "0.40"
+cuda-fatbin = { path = "../cuda-fatbin" }
+offload-bundle = { path = "../offload-bundle" }
+flate2 = "1"
+ruzstd = "0.9"
+
+[lints.rust]
+unsafe_code = "forbid"

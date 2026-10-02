@@ -8,15 +8,28 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/tiran/objectfile"
 publish = false
 
+# This package is also the workspace root; the GPU fat-binary parsers live in
+# their own pure-Rust (pyo3-free) crates under crates/.
+[workspace]
+members = ["crates/gpu-elf-flags", "crates/cuda-fatbin", "crates/offload-bundle"]
+
 [lib]
 name = "_objectfile"
 crate-type = ["cdylib"]
+
+[features]
+# GPU fat-binary support (NVIDIA CUDA + AMD HIP). On by default; the extra deps
+# are pure Rust and already pulled in transitively by `object`.
+default = ["gpu"]
+gpu = ["dep:cuda-fatbin", "dep:offload-bundle"]
 
 [dependencies]
 # Default features cover ELF/PE/Mach-O/COFF/XCOFF; "wasm" is opt-in.
 object = { version = "0.40.0", features = ["wasm"] }
 memmap2 = "0.9.11"
 self_cell = "1.3.0"
+cuda-fatbin = { path = "crates/cuda-fatbin", optional = true }
+offload-bundle = { path = "crates/offload-bundle", optional = true }
 
 [dependencies.pyo3]
 version = "0.29.3"

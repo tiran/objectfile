@@ -252,3 +252,9 @@ rustc-ice-*.txt
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# GPU test fixtures (shared objects) are tracked, despite the *.so rule above.
+!testdata/**/*.so
+
+# Local scratch TODO, intentionally not committed.
+/TODO.md

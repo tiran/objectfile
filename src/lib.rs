@@ -11,6 +11,8 @@
 
 mod enums;
 mod file;
+#[cfg(feature = "gpu")]
+mod gpu;
 mod iter;
 mod model;
 
@@ -38,6 +40,9 @@ fn _objectfile(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<iter::SymbolIter>()?;
 
     m.add_class::<file::ObjectFile>()?;
+
+    #[cfg(feature = "gpu")]
+    m.add_class::<gpu::GpuCodeObject>()?;
 
     m.add(
         "ObjectFileError",

@@ -58,7 +58,7 @@ dev = [
 python-source = "python"
 module-name = "objectfile._objectfile"
 strip = true
-exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo"]
+exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo", "testdata/**"]
 
 [tool.ruff]
 line-length = 88

@@ -45,7 +45,7 @@ impl AsRef<[u8]> for Backing {
 }
 
 /// The parsed file. Its lifetime `'a` ties it to the `Backing` it reads from.
-type ParsedFile<'a> = object::File<'a, &'a [u8]>;
+pub(crate) type ParsedFile<'a> = object::File<'a, &'a [u8]>;
 
 // `FileCell` owns the `Backing` and the `ParsedFile` that borrows it, keeping
 // the two together for as long as the Python object lives.
@@ -158,6 +158,18 @@ impl ObjectFile {
             }
         };
         Ok(SymbolIter::new(items))
+    }
+
+    /// Embedded GPU code objects (CUDA cubins/PTX and AMD HIP code objects).
+    #[cfg(feature = "gpu")]
+    fn gpu_code_objects(&self) -> Vec<crate::gpu::GpuCodeObject> {
+        crate::gpu::code_objects(self.file())
+    }
+
+    /// Sorted, unique GPU target names (e.g. `sm_90a`, `gfx942`).
+    #[cfg(feature = "gpu")]
+    fn gpu_targets(&self) -> Vec<String> {
+        crate::gpu::targets(self.file())
     }
 }
 

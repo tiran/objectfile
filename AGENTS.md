@@ -22,6 +22,15 @@ Almost everything lives in the Rust extension; the Python package is a thin re-e
   - `iter.rs` - the lazy iterators (`ImportIter`, ..., `SymbolIter`).
   - `file.rs` - `Backing` (mmap or owned bytes), the `self_cell` holding the parsed
     `object::File`, the `ObjectFile` type, and `parse` / `parse_file`.
+  - `gpu.rs` - GPU fat-binary bridge (behind the default `gpu` feature): scans
+    sections and exposes `GpuCodeObject` / `ObjectFile.gpu_targets()`.
+- `crates/` - workspace members: pure-Rust, pyo3-free, unit-tested standalone:
+  - `cuda-fatbin` - NVIDIA `.nv_fatbin` fat binary parser.
+  - `offload-bundle` - AMD HIP / Clang Offload Bundle parser (`.hip_fatbin`,
+    incl. CCOB).
+  - `gpu-elf-flags` - decode a GPU code object's target (gfx / sm) from the ELF
+    `e_machine` + `e_flags` fields; `amdgpu` + `nvptx` modules plus a common
+    `Flags` / `GpuTarget` API. Constants pinned to an LLVM release (`LLVM_SOURCE`).
 - `python/objectfile/` - `__init__.py` (import-only re-exports), `_cli.py` +
   `__main__.py` (the `objectfile` console script; output is explicitly **unstable**),
   `_objectfile.pyi` (stub for the compiled module), `py.typed`.

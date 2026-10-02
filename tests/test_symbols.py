@@ -11,16 +11,16 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_symbols_returns_fresh_iterator(self_executable: Path) -> None:
-    obj = objectfile.parse_file(self_executable)
+def test_symbols_returns_fresh_iterator(sample_object: Path) -> None:
+    obj = objectfile.parse_file(sample_object)
     first = obj.symbols()
     second = obj.symbols()
     assert isinstance(first, collections.abc.Iterator)
     assert first is not second
 
 
-def test_symbols_yield_typed_entries(self_executable: Path) -> None:
-    obj = objectfile.parse_file(self_executable)
+def test_symbols_yield_typed_entries(sample_object: Path) -> None:
+    obj = objectfile.parse_file(sample_object)
     sym = next(iter(obj.symbols()), None)
     if sym is None:
         return  # a fully stripped binary - nothing to assert
@@ -31,14 +31,14 @@ def test_symbols_yield_typed_entries(self_executable: Path) -> None:
     assert isinstance(sym.is_undefined, bool)
 
 
-def test_symbols_are_lazy(self_executable: Path) -> None:
-    obj = objectfile.parse_file(self_executable)
+def test_symbols_are_lazy(sample_object: Path) -> None:
+    obj = objectfile.parse_file(sample_object)
     head = list(itertools.islice(obj.symbols(), 3))
     assert all(isinstance(s, Symbol) for s in head)
 
 
-def test_dynamic_symbols_iterable(self_executable: Path) -> None:
-    obj = objectfile.parse_file(self_executable)
+def test_dynamic_symbols_iterable(sample_object: Path) -> None:
+    obj = objectfile.parse_file(sample_object)
     assert all(isinstance(s, Symbol) for s in obj.dynamic_symbols())
 
 

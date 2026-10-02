@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "objectfile"
 dynamic = ["version"]
 description = "Parse ELF, Mach-O, PE, and WebAssembly object files: metadata, symbols, and dependencies"
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = "Apache-2.0 OR MIT"
 license-files = ["LICENSE-APACHE", "LICENSE-MIT"]

@@ -100,7 +100,13 @@ def test_cross_format(tmp_path: Path, target: str, fmt: str, arch: str) -> None:
     # Relocatable objects have empty dynamic-linking tables (imports/exports);
     # the real symbols live in the symbol table.
     symbols = list(obj.symbols())
-    exported = [s for s in symbols if s.name == "objectfile_fixture"]
-    imported = [s for s in symbols if s.name == "abort"]
-    assert exported and not exported[0].is_undefined  # defined export
-    assert imported and imported[0].is_undefined  # undefined import
+
+    def has(name: str, *, undefined: bool) -> bool:
+        # Mach-O prefixes C symbol names with an underscore.
+        return any(
+            sym.name in (name, f"_{name}") and sym.is_undefined == undefined
+            for sym in symbols
+        )
+
+    assert has("objectfile_fixture", undefined=False)  # defined export
+    assert has("abort", undefined=True)  # undefined import

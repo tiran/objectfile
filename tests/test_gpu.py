@@ -169,61 +169,46 @@ def test_cli_gpu(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert "hip   gfx942" in out
 
 
-# --- Real fixtures: CUDA -----------------------------------------------------
+# --- Real fixtures (CUDA + ROCm) ---------------------------------------------
+# Compressed and uncompressed variants must agree: architectures come from the
+# container entry headers, so the payloads need no decompression.
 
 
-def test_cuda_uncompressed() -> None:
-    obj = objectfile.parse_file(TESTDATA / "cuda" / "hello.so")
-    assert obj.gpu_targets() == EXPECTED_CUDA_TARGETS
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ("cuda/hello.so", EXPECTED_CUDA_TARGETS),
+        ("cuda-compressed/hello.so", EXPECTED_CUDA_TARGETS),
+        ("rocm/hello.so", EXPECTED_ROCM_TARGETS),
+        ("rocm-compressed/hello.so", EXPECTED_ROCM_TARGETS),
+    ],
+)
+def test_fixture_targets(fixture: str, expected: list[str]) -> None:
+    assert objectfile.parse_file(TESTDATA / fixture).gpu_targets() == expected
 
 
-def test_cuda_compressed() -> None:
-    # Architectures come from the fatbin entry headers, so compressed payloads
-    # need no decompression.
-    obj = objectfile.parse_file(TESTDATA / "cuda-compressed" / "hello.so")
-    assert obj.gpu_targets() == EXPECTED_CUDA_TARGETS
+def test_fixture_code_objects() -> None:
+    cuda = objectfile.parse_file(TESTDATA / "cuda" / "hello.so").gpu_code_objects()
+    assert cuda
+    assert all(co.compute_platform == "cuda" for co in cuda)
+    assert {co.kind for co in cuda} <= {"ptx", "elf"}
+    assert any(co.kind == "ptx" for co in cuda)  # a compute_* PTX entry
+    assert any(co.kind == "elf" for co in cuda)  # sm_* cubin entries
+
+    rocm = objectfile.parse_file(TESTDATA / "rocm" / "hello.so").gpu_code_objects()
+    assert len(rocm) == 6  # host + 5 device archs
+    assert all(co.compute_platform == "hip" for co in rocm)
+    assert any(co.kind == "host" and co.target is None for co in rocm)
+    assert sum(1 for co in rocm if co.kind == "code-object") == 5
 
 
-def test_cuda_code_objects() -> None:
-    code = objectfile.parse_file(TESTDATA / "cuda" / "hello.so").gpu_code_objects()
-    assert code
-    assert all(co.compute_platform == "cuda" for co in code)
-    assert all(co.kind in ("ptx", "elf") for co in code)
-    assert any(co.kind == "ptx" for co in code)  # a compute_* PTX entry
-    assert any(co.kind == "elf" for co in code)  # sm_* cubin entries
-
-
-def test_no_cuda_in_hip_binary() -> None:
-    obj = objectfile.parse_file(TESTDATA / "rocm" / "hello.so")
-    assert [co for co in obj.gpu_code_objects() if co.compute_platform == "cuda"] == []
-
-
-# --- Real fixtures: ROCm / HIP -----------------------------------------------
-
-
-def test_rocm_uncompressed() -> None:
-    obj = objectfile.parse_file(TESTDATA / "rocm" / "hello.so")
-    assert obj.gpu_targets() == EXPECTED_ROCM_TARGETS
-
-
-def test_rocm_compressed() -> None:
-    # The .hip_fatbin uses compressed CCOB blocks (Zstd); decompressed here.
-    obj = objectfile.parse_file(TESTDATA / "rocm-compressed" / "hello.so")
-    assert obj.gpu_targets() == EXPECTED_ROCM_TARGETS
-
-
-def test_rocm_code_objects() -> None:
-    code = objectfile.parse_file(TESTDATA / "rocm" / "hello.so").gpu_code_objects()
-    # host + 5 device archs
-    assert len(code) == 6
-    assert all(co.compute_platform == "hip" for co in code)
-    assert any(co.kind == "host" and co.target is None for co in code)
-    assert sum(1 for co in code if co.kind == "code-object") == 5
-
-
-def test_no_hip_in_cuda_binary() -> None:
-    obj = objectfile.parse_file(TESTDATA / "cuda" / "hello.so")
-    assert [co for co in obj.gpu_code_objects() if co.compute_platform == "hip"] == []
+@pytest.mark.parametrize(
+    ("fixture", "absent"),
+    [("rocm/hello.so", "cuda"), ("cuda/hello.so", "hip")],
+)
+def test_platform_isolation(fixture: str, absent: str) -> None:
+    code = objectfile.parse_file(TESTDATA / fixture).gpu_code_objects()
+    assert [co for co in code if co.compute_platform == absent] == []
 
 
 def test_cli_gpu_on_fixture(capsys: pytest.CaptureFixture[str]) -> None:

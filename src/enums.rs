@@ -209,6 +209,37 @@ impl SymbolScope {
     }
 }
 
+/// How an object participates in linking.
+///
+/// ELF distinguishes a position-independent executable (`ET_DYN` carrying
+/// `DT_DEBUG` / `DF_1_PIE`) from a shared library; other formats map from the
+/// generic object kind, so `PieExecutable` only occurs for ELF.
+#[pyclass(eq, eq_int, frozen, from_py_object, module = "objectfile._objectfile")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LinkKind {
+    Unknown,
+    Relocatable,
+    Executable,
+    PieExecutable,
+    SharedLibrary,
+    Core,
+}
+
+/// Which symbol hash table(s) an ELF object carries (`DT_HASH` / `DT_GNU_HASH`).
+///
+/// `Unknown` for non-ELF files or when there is no dynamic section; `Absent` for
+/// an ELF with a dynamic section but neither hash.
+#[pyclass(eq, eq_int, frozen, from_py_object, module = "objectfile._objectfile")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[allow(clippy::upper_case_acronyms)] // SysV / GNU are the correct spellings
+pub enum SymbolHash {
+    Unknown,
+    Absent,
+    SysV,
+    GNU,
+    Both,
+}
+
 // Each enum gets a `__str__` that is just the variant name (e.g. `Elf`), so
 // Python code and serialization get a clean string without the type prefix.
 // `{self:?}` is the derived `Debug`, which prints exactly the variant name.
@@ -251,6 +282,20 @@ impl SymbolKind {
 
 #[pymethods]
 impl SymbolScope {
+    fn __str__(&self) -> String {
+        format!("{self:?}")
+    }
+}
+
+#[pymethods]
+impl LinkKind {
+    fn __str__(&self) -> String {
+        format!("{self:?}")
+    }
+}
+
+#[pymethods]
+impl SymbolHash {
     fn __str__(&self) -> String {
         format!("{self:?}")
     }

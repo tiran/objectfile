@@ -9,6 +9,7 @@
 //! * [`iter`]   - the lazy iterators returned by `ObjectFile`.
 //! * [`file`]   - the `ObjectFile` type and the `parse` / `parse_file` functions.
 
+mod dynamic;
 mod enums;
 mod file;
 #[cfg(feature = "gpu")]
@@ -29,6 +30,8 @@ fn _objectfile(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<enums::ObjectKind>()?;
     m.add_class::<enums::SymbolKind>()?;
     m.add_class::<enums::SymbolScope>()?;
+    m.add_class::<enums::LinkKind>()?;
+    m.add_class::<enums::SymbolHash>()?;
 
     m.add_class::<model::Import>()?;
     m.add_class::<model::Export>()?;

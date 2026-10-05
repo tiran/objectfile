@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from objectfile import _cli
 
-if TYPE_CHECKING:
-    from pathlib import Path
+TESTDATA = Path(__file__).parent.parent / "testdata"
 
 
 def test_cli_prints_summary(
@@ -79,6 +78,17 @@ def test_display_falls_back_when_demangle_raises() -> None:
     assert _cli._display("_ZGTtNKSt11logic_error4whatEv", boom) == (
         "_ZGTtNKSt11logic_error4whatEv"
     )
+
+
+def test_cli_summary_shows_dynamic(capsys: pytest.CaptureFixture[str]) -> None:
+    # Dynamic-linking metadata is part of the default summary.
+    rc = _cli.main([str(TESTDATA / "rocm" / "hello.so")])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "link kind:    SharedLibrary" in out
+    assert "symbol hash:  GNU" in out
+    assert "required versions (" in out
+    assert "libc.so.6: GLIBC" in out
 
 
 def test_cli_missing_file(capsys: pytest.CaptureFixture[str]) -> None:

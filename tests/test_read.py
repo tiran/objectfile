@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import collections.abc
+import os
+import pathlib
 from typing import TYPE_CHECKING
 
 import pytest
@@ -18,6 +20,21 @@ from objectfile import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def test_path(sample_object: Path) -> None:
+    # parse_file records the absolute, resolved source path.
+    from_file = objectfile.parse_file(sample_object)
+    assert from_file.path is not None
+    assert os.path.isabs(from_file.path)
+    assert os.path.exists(from_file.path)
+
+    # A buffer has no path unless one is given, and it round-trips as a Path
+    # (compare Path objects, not strings: Windows normalizes the separators).
+    data = sample_object.read_bytes()
+    assert objectfile.parse(data).path is None
+    explicit = objectfile.parse(data, path="/opt/app/lib/libx.so")
+    assert explicit.path == pathlib.Path("/opt/app/lib/libx.so")
 
 
 def test_parse_sample_object(sample_object: Path) -> None:

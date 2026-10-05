@@ -11,9 +11,10 @@ use pyo3::create_exception;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use self_cell::self_cell;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::enums::{Architecture, Endianness, Format, ObjectKind};
+use crate::enums::{Architecture, Endianness, Format, LinkKind, ObjectKind, SymbolHash};
 use crate::iter::{ExportIter, ImportIter, LibraryIter, SymbolIter};
 use crate::model::{
     build_import, build_symbol, collect_elf_dynamic_symbols, collect_exports, decode_name,
@@ -58,9 +59,28 @@ self_cell!(
 );
 
 /// A parsed object file: owns its (memory-mapped) bytes and the parsed file.
+///
+/// The format metadata and symbol/dependency tables work across all formats.
+/// The dynamic-linking accessors are format-specific:
+///
+/// | accessor                                     | ELF | Mach-O | PE / COFF / wasm |
+/// | -------------------------------------------- | --- | ------ | ---------------- |
+/// | `soname`, `interpreter`, `rpaths()`          | yes | yes    | no               |
+/// | `link_kind`                                  | yes | yes    | yes (no PIE)     |
+/// | `runpaths()`, `symbol_hash`,                 | yes | no     | no               |
+/// | `provided_versions()`, `required_versions()` | yes | no     | no               |
+///
+/// Where a field does not apply, a scalar returns `None`, a collection returns an
+/// empty list/dict, and `symbol_hash`/`link_kind` return their `Unknown` member.
+/// An absent value and an unsupported format are reported the same way (as with
+/// `Symbol.version`); check `format` if you need to tell them apart. These reads
+/// use the ELF section headers / Mach-O load commands, so a binary stripped of its
+/// section-header table (uncommon; plain `strip` keeps them) reports empties.
 #[pyclass(frozen, module = "objectfile._objectfile")]
 pub struct ObjectFile {
     cell: FileCell,
+    // The absolute, symlink-resolved path for `parse_file`; `None` for `parse`.
+    path: Option<PathBuf>,
 }
 
 impl ObjectFile {
@@ -73,6 +93,13 @@ impl ObjectFile {
 
 #[pymethods]
 impl ObjectFile {
+    /// The absolute, symlink-resolved path this file was parsed from, or `None`
+    /// for `parse(bytes)`. Handy for resolving ELF `$ORIGIN` in rpath/runpath.
+    #[getter]
+    fn path(&self) -> Option<PathBuf> {
+        self.path.clone()
+    }
+
     #[getter]
     fn format(&self) -> Format {
         Format::from_object(self.file().format())
@@ -96,6 +123,53 @@ impl ObjectFile {
     #[getter]
     fn kind(&self) -> ObjectKind {
         ObjectKind::from_object(self.file().kind())
+    }
+
+    /// Link kind, distinguishing a PIE executable from a shared library (ELF).
+    #[getter]
+    fn link_kind(&self) -> LinkKind {
+        crate::dynamic::link_kind(self.file())
+    }
+
+    /// The object's own library name: ELF `DT_SONAME` or Mach-O install name
+    /// (`LC_ID_DYLIB`). `None` if unset.
+    #[getter]
+    fn soname(&self) -> Option<String> {
+        crate::dynamic::soname(self.file())
+    }
+
+    /// The program interpreter / dynamic loader: ELF `PT_INTERP` or Mach-O
+    /// `LC_LOAD_DYLINKER`. `None` if absent.
+    #[getter]
+    fn interpreter(&self) -> Option<String> {
+        crate::dynamic::interpreter(self.file())
+    }
+
+    /// Which symbol hash table(s) the object carries (ELF `DT_HASH`/`DT_GNU_HASH`).
+    #[getter]
+    fn symbol_hash(&self) -> SymbolHash {
+        crate::dynamic::symbol_hash(self.file())
+    }
+
+    /// Library search paths: ELF `DT_RPATH` or Mach-O `LC_RPATH`.
+    fn rpaths(&self) -> Vec<String> {
+        crate::dynamic::rpaths(self.file())
+    }
+
+    /// `DT_RUNPATH`: the library search paths (ELF only).
+    fn runpaths(&self) -> Vec<String> {
+        crate::dynamic::runpaths(self.file())
+    }
+
+    /// Symbol version names this object defines (ELF verdef), base excluded.
+    fn provided_versions(&self) -> Vec<String> {
+        crate::dynamic::provided_versions(self.file())
+    }
+
+    /// Required symbol versions per needed library (ELF verneed):
+    /// `{soname: [version, ...]}`.
+    fn required_versions(&self) -> BTreeMap<String, Vec<String>> {
+        crate::dynamic::required_versions(self.file())
     }
 
     /// Iterate imported symbols (the dynamic-linking import table).
@@ -207,21 +281,30 @@ impl From<ParseError> for PyErr {
     }
 }
 
-fn build(backing: Backing) -> Result<ObjectFile, object::Error> {
+fn build(backing: Backing, path: Option<PathBuf>) -> Result<ObjectFile, object::Error> {
     let cell = FileCell::try_new(backing, |backing| object::File::parse(backing.as_ref()))?;
-    Ok(ObjectFile { cell })
+    Ok(ObjectFile { cell, path })
 }
 
 /// Parse an object file from any object supporting the buffer protocol
 /// (`bytes`, `bytearray`, `memoryview`, `mmap`, ...). The bytes are copied into
 /// an owned buffer; use `parse_file` to avoid copying large files.
+///
+/// The keyword-only `path` optionally records a logical source path (exposed as
+/// `ObjectFile.path`, e.g. for resolving ELF `$ORIGIN`). Unlike `parse_file` it
+/// is stored verbatim and need not exist on disk.
 #[pyfunction]
-pub(crate) fn parse(py: Python<'_>, data: &Bound<'_, PyAny>) -> PyResult<ObjectFile> {
+#[pyo3(signature = (data, *, path=None))]
+pub(crate) fn parse(
+    py: Python<'_>,
+    data: &Bound<'_, PyAny>,
+    path: Option<PathBuf>,
+) -> PyResult<ObjectFile> {
     let buffer = PyBuffer::<u8>::get(data)?;
     let bytes = buffer.to_vec(py)?;
     // Parsing touches no Python state, so release the GIL while we do it.
     let obj = py
-        .detach(|| build(Backing::Bytes(bytes)))
+        .detach(|| build(Backing::Bytes(bytes), path))
         .map_err(parse_error)?;
     Ok(obj)
 }
@@ -233,15 +316,18 @@ pub(crate) fn parse_file(py: Python<'_>, path: PathBuf) -> PyResult<ObjectFile> 
     let obj = py.detach(|| -> Result<ObjectFile, ParseError> {
         // Opening maps OS errors to Python (e.g. FileNotFoundError).
         let file = std::fs::File::open(&path)?;
+        // Store the absolute, symlink-resolved path (what ELF `$ORIGIN` uses);
+        // fall back to the path as given if it cannot be canonicalized.
+        let resolved = std::fs::canonicalize(&path).unwrap_or(path);
         // An empty file cannot be memory-mapped; use an empty buffer so the
         // caller gets a clean parse error rather than an OSError.
         if file.metadata()?.len() == 0 {
-            return Ok(build(Backing::Bytes(Vec::new()))?);
+            return Ok(build(Backing::Bytes(Vec::new()), Some(resolved))?);
         }
         // Mapping is unsafe in general (another process could change the file
         // while it is mapped); this is the standard, accepted trade-off for mmap.
         let mmap = unsafe { memmap2::Mmap::map(&file)? };
-        Ok(build(Backing::Mmap(mmap))?)
+        Ok(build(Backing::Mmap(mmap), Some(resolved))?)
     })?;
     Ok(obj)
 }

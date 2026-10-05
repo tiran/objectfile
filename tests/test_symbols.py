@@ -11,38 +11,42 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_symbols_returns_fresh_iterator(sample_object: Path) -> None:
+def test_symbol_iteration(sample_object: Path) -> None:
     obj = objectfile.parse_file(sample_object)
-    first = obj.symbols()
-    second = obj.symbols()
+
+    # Each call returns a fresh, independent iterator.
+    first, second = obj.symbols(), obj.symbols()
     assert isinstance(first, collections.abc.Iterator)
     assert first is not second
 
-
-def test_symbols_yield_typed_entries(sample_object: Path) -> None:
-    obj = objectfile.parse_file(sample_object)
-    sym = next(iter(obj.symbols()), None)
-    if sym is None:
-        return  # a fully stripped binary - nothing to assert
-    assert isinstance(sym, Symbol)
-    assert isinstance(sym.kind, SymbolKind)
-    assert isinstance(sym.scope, SymbolScope)
-    assert isinstance(sym.address, int)
-    assert isinstance(sym.is_undefined, bool)
-
-
-def test_symbols_are_lazy(sample_object: Path) -> None:
-    obj = objectfile.parse_file(sample_object)
+    # Lazy: a slice yields typed entries, as does dynamic_symbols().
     head = list(itertools.islice(obj.symbols(), 3))
     assert all(isinstance(s, Symbol) for s in head)
-
-
-def test_dynamic_symbols_iterable(sample_object: Path) -> None:
-    obj = objectfile.parse_file(sample_object)
     assert all(isinstance(s, Symbol) for s in obj.dynamic_symbols())
 
+    sym = next(iter(obj.symbols()), None)
+    if sym is not None:  # a fully stripped binary has nothing to check
+        assert isinstance(sym.kind, SymbolKind)
+        assert isinstance(sym.scope, SymbolScope)
+        assert isinstance(sym.address, int)
+        assert isinstance(sym.is_undefined, bool)
 
-def test_symbols_sortable_by_name() -> None:
+
+def test_symbol_value_semantics() -> None:
+    # Constructor defaults.
+    default = Symbol("name")
+    assert default.address == 0
+    assert default.kind == SymbolKind.Unknown
+    assert default.section_index is None
+
+    # Equality and hashing.
+    a = Symbol("x", 1, 2, SymbolKind.Text, SymbolScope.Dynamic, False, True, False, 0)
+    b = Symbol("x", 1, 2, SymbolKind.Text, SymbolScope.Dynamic, False, True, False, 0)
+    assert a == b
+    assert hash(a) == hash(b)
+    assert len({a, b}) == 1
+
+    # Sorting by name, with a None name first.
     syms = [
         Symbol(
             "z", 0x30, 0, SymbolKind.Text, SymbolScope.Dynamic, False, True, False, 1
@@ -63,18 +67,3 @@ def test_symbols_sortable_by_name() -> None:
         ),
     ]
     assert [s.name for s in sorted(syms)] == [None, "a", "z"]
-
-
-def test_symbol_equality_and_hash() -> None:
-    a = Symbol("x", 1, 2, SymbolKind.Text, SymbolScope.Dynamic, False, True, False, 0)
-    b = Symbol("x", 1, 2, SymbolKind.Text, SymbolScope.Dynamic, False, True, False, 0)
-    assert a == b
-    assert hash(a) == hash(b)
-    assert len({a, b}) == 1
-
-
-def test_symbol_defaults() -> None:
-    sym = Symbol("name")
-    assert sym.address == 0
-    assert sym.kind == SymbolKind.Unknown
-    assert sym.section_index is None

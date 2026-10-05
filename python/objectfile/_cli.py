@@ -14,7 +14,7 @@ import argparse
 import sys
 from typing import TYPE_CHECKING
 
-from ._objectfile import parse_file
+from ._objectfile import SymbolHash, parse_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -52,15 +52,40 @@ def _print_summary(obj: ObjectFile) -> None:
     print(f"architecture: {obj.architecture}")
     print(f"bits:         {'64' if obj.is_64 else '32'}")
     print(f"endianness:   {obj.endianness}")
-    print(f"kind:         {obj.kind}")
+    print(f"link kind:    {obj.link_kind}")
+    if obj.soname is not None:
+        print(f"soname:       {obj.soname}")
+    if obj.interpreter is not None:
+        print(f"interpreter:  {obj.interpreter}")
+    if obj.symbol_hash != SymbolHash.Unknown:
+        print(f"symbol hash:  {obj.symbol_hash}")
 
     libraries = list(obj.libraries())
     print(f"libraries ({len(libraries)}):")
     for library in libraries:
         print(f"  {library}")
 
+    # Only shown when present, so a plain executable stays uncluttered.
+    for label, paths in (("rpaths", obj.rpaths()), ("runpaths", obj.runpaths())):
+        if paths:
+            print(f"{label} ({len(paths)}):")
+            for path in paths:
+                print(f"  {path}")
+
     print(f"imports:      {sum(1 for _ in obj.imports())}")
     print(f"exports:      {sum(1 for _ in obj.exports())}")
+
+    provided = obj.provided_versions()
+    if provided:
+        print(f"provided versions ({len(provided)}):")
+        for version in provided:
+            print(f"  {version}")
+
+    required = obj.required_versions()
+    if required:
+        print(f"required versions ({len(required)}):")
+        for library, versions in required.items():
+            print(f"  {library}: {', '.join(versions)}")
 
     targets = obj.gpu_targets()
     if targets:

@@ -32,7 +32,7 @@ cuda-fatbin = { path = "crates/cuda-fatbin", optional = true }
 offload-bundle = { path = "crates/offload-bundle", optional = true }
 
 [dependencies.pyo3]
-version = "0.29.3"
+version = "0.30.1"
 features = ["abi3-py312", "extension-module"]
 
 [profile.release]

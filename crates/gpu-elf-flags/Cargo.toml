@@ -12,7 +12,7 @@ publish = false
 [dev-dependencies]
 # Test-only: extract embedded code objects from the real GPU fixtures and
 # cross-check their decoded e_flags against the container metadata.
-object = "0.40"
+object = "0.41"
 cuda-fatbin = { path = "../cuda-fatbin" }
 offload-bundle = { path = "../offload-bundle" }
 flate2 = "1"
